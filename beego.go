@@ -9,7 +9,6 @@ func buildBeegoFramework() *Framework {
 	fw := &Framework{}
 
 	fw.controllerImportPackages = [][2]string{
-		[2]string{"github.com/TingYunAPM/go", "tingyun"},
 		[2]string{"github.com/TingYunAPM/go/framework/beego", "tingyun_beego"},
 	}
 

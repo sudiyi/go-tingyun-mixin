@@ -20,10 +20,10 @@ func parseFile(solver *Solver, fpath string) *File {
 	fileCmtMap := ast.NewCommentMap(fileSet, fileAst, fileAst.Comments)
 
 	f := &File{
-		path:       fpath,
 		ast:        fileAst,
 		fileSet:    fileSet,
 		commentMap: fileCmtMap,
+		path:       fpath,
 		imports:    map[string]string{},
 	}
 	for _, im := range f.ast.Imports {
@@ -69,6 +69,7 @@ func importPackages(f *File, names [][2]string) {
 		}
 	}
 	ast.SortImports(f.fileSet, f.ast)
+	f.modified = true
 }
 
 func checkNotation(f *File, node ast.Node, notation string) bool {
@@ -84,56 +85,68 @@ func checkNotation(f *File, node ast.Node, notation string) bool {
 	return false
 }
 
-func checkComponentCallInner(solver *Solver, expr ast.Expr, importPath string, f *File) (*ast.CallExpr, string) {
-	var funcName string
+func prependStatements(funcDecl *ast.FuncDecl, prefStmts []ast.Stmt) {
+	stmts := make([]ast.Stmt, len(prefStmts)+len(funcDecl.Body.List))
+	copy(stmts, prefStmts)
+	if len(funcDecl.Body.List) > 0 {
+		copy(stmts[len(prefStmts):], funcDecl.Body.List)
+	}
+	funcDecl.Body.List = stmts
+}
+
+func checkComponentCall(solver *Solver, expr ast.Expr) *ast.CallExpr {
 	callExpr, ok := expr.(*ast.CallExpr)
 	if !ok {
-		return nil, ""
+		return nil
 	}
 
 	switch funExpr := callExpr.Fun.(type) {
 	case *ast.SelectorExpr:
 		x, ok := funExpr.X.(*ast.Ident)
 		if !ok {
-			return nil, ""
+			return nil
 		}
-		importPath, ok = f.imports[x.Name]
+		packagePath, ok := solver.file.imports[x.Name]
 		if !ok {
-			return nil, ""
+			return nil
 		}
-		if !ok || !solver.componentFuncs.check(importPath, funExpr.Sel.Name) {
-			return nil, ""
+		if !ok || !solver.componentFuncs.check(packagePath, funExpr.Sel.Name) {
+			return nil
 		}
-		funcName = x.Name + "." + funExpr.Sel.Name
 	case *ast.Ident:
-		if !solver.componentFuncs.check(importPath, funExpr.Name) {
-			return nil, ""
+		if !solver.componentFuncs.check(solver.packagePath, funExpr.Name) {
+			return nil
 		}
-		funcName = funExpr.Name
 	default:
-		return nil, ""
+		return nil
 	}
-	return callExpr, funcName
+	return callExpr
 }
 
-func checkComponentCall(solver *Solver, stmt ast.Stmt, importPath string, f *File) (*ast.CallExpr, string) {
-	switch s := stmt.(type) {
-	case *ast.AssignStmt:
-		if 1 != len(s.Rhs) {
-			return nil, ""
+func processComponentCall(solver *Solver, stmts []ast.Stmt, componentVarName string) {
+	for _, stmt := range stmts {
+		var callExpr *ast.CallExpr
+		switch s := stmt.(type) {
+		case *ast.IfStmt:
+			processComponentCall(solver, s.Body.List, componentVarName)
+		case *ast.ForStmt:
+			processComponentCall(solver, s.Body.List, componentVarName)
+		case *ast.BlockStmt:
+			processComponentCall(solver, s.List, componentVarName)
+		case *ast.SwitchStmt:
+			processComponentCall(solver, s.Body.List, componentVarName)
+		case *ast.CaseClause:
+			processComponentCall(solver, s.Body, componentVarName)
+		case *ast.AssignStmt:
+			if 1 == len(s.Rhs) {
+				callExpr = checkComponentCall(solver, s.Rhs[0])
+			}
+		case *ast.ExprStmt:
+			callExpr = checkComponentCall(solver, s.X)
 		}
-		return checkComponentCallInner(solver, s.Rhs[0], importPath, f)
-	case *ast.ExprStmt:
-		return checkComponentCallInner(solver, s.X, importPath, f)
-	}
-	return nil, ""
-}
 
-func prependComponetParamInCall(callExpr *ast.CallExpr, componentVarName string) {
-	args := make([]ast.Expr, len(callExpr.Args)+1)
-	args[0] = &ast.BasicLit{Value: componentVarName}
-	if len(callExpr.Args) > 0 {
-		copy(args[1:], callExpr.Args)
+		if nil != callExpr {
+			callExpr.Args = append(callExpr.Args, &ast.BasicLit{Value: componentVarName})
+		}
 	}
-	callExpr.Args = args
 }

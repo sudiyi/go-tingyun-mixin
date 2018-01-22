@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"go/ast"
+	"go/format"
 	"go/printer"
 	"go/token"
 	"io/ioutil"
@@ -11,11 +14,11 @@ import (
 )
 
 type File struct {
-	path       string
 	ast        *ast.File
 	fileSet    *token.FileSet
 	commentMap ast.CommentMap
 
+	path     string
 	imports  map[string]string // import name => import path
 	modified bool
 }
@@ -36,6 +39,9 @@ type Solver struct {
 	files           map[string]*File // file path in project =>
 	basePackagePath string
 	componentFuncs  ComponentFuncs // import path => func name => true
+
+	packagePath string
+	file        *File
 }
 
 type ComponentFuncs map[string]map[string]bool
@@ -57,16 +63,17 @@ func (componentFuncs ComponentFuncs) check(importPath, funcName string) bool {
 	return m[funcName]
 }
 
-func scanDir(solver *Solver, dirname, pathInProj string, process func(*Solver, *File, string)) {
+func scanDir(solver *Solver, dirname, packagePath string, process func(*Solver)) {
 	files, err := ioutil.ReadDir(dirname)
 	if nil != err {
 		panic(err)
 	}
+	solver.packagePath = packagePath
 	for _, file := range files {
 		fname := file.Name()
 		if file.IsDir() {
 			if "vendor" != fname {
-				scanDir(solver, path.Join(dirname, fname), path.Join(pathInProj, fname), process)
+				scanDir(solver, path.Join(dirname, fname), path.Join(packagePath, fname), process)
 			}
 		} else if strings.HasSuffix(fname, ".go") {
 			fpath := path.Join(dirname, fname)
@@ -75,9 +82,33 @@ func scanDir(solver *Solver, dirname, pathInProj string, process func(*Solver, *
 				f = parseFile(solver, fpath)
 				solver.files[fpath] = f
 			}
-			process(solver, f, pathInProj)
+			solver.file = f
+			process(solver)
 		}
 	}
+}
+
+func writeFile(f *File) {
+	fmt.Printf("writing file %s\n", f.path)
+	buf := &bytes.Buffer{}
+	printer.Fprint(buf, f.fileSet, f.ast)
+
+	fout, err := os.OpenFile(f.path, os.O_WRONLY, 0664)
+	if nil != err {
+		panic(err)
+	}
+	if err = printer.Fprint(buf, f.fileSet, f.ast); nil != err {
+		panic(err)
+	}
+	bs, err := format.Source(buf.Bytes())
+	if nil != err {
+		panic(err)
+	}
+	if _, err = fout.Write(bs); nil != err {
+		panic(err)
+	}
+	fout.Sync()
+	fout.Close()
 }
 
 func main() {
@@ -108,21 +139,11 @@ func main() {
 
 	for _, f := range solver.files {
 		if f.modified {
-			/*
-				fmt.Printf("writing file %s\n", f.path)
-				fout, err := os.OpenFile(f.path, os.O_WRONLY, 0664)
-				if nil != err {
-					fmt.Printf("failed to open file %s: %s\n", f.path, err.Error())
-					break
-				}
-				if err = printer.Fprint(fout, f.fileSet, f.ast); nil != err {
-					fmt.Printf("failed to write file %s: %s\n", f.path, err.Error())
-					break
-				}
-				fout.Sync()
-				fout.Close()
-			*/
-			printer.Fprint(os.Stdout, f.fileSet, f.ast)
+			//writeFile(f)
+			buf := &bytes.Buffer{}
+			printer.Fprint(buf, f.fileSet, f.ast)
+			bs, _ := format.Source(buf.Bytes())
+			println(string(bs))
 		}
 	}
 }
