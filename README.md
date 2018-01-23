@@ -27,6 +27,8 @@ Description
 
 所有添加的代码中用到的包也会在 `import` 中自动添加
 
+`tingyun.AppInit` 等全局代码请自行添加
+
 ### component
 
 此工具会扫描所有被标记为 component 的函数：
@@ -117,7 +119,7 @@ defer tyComponentSub.Finish()
 
 #### 修改实参
 
-component 函数中对其它 component 函数的调用实参也会被改写，在最后追加传入 `tyComponentSub`：
+component 函数中对其它 component 函数的调用实参也会被改写，在最后追加传入 `tyComponentSub`；会递归扫描函数体主块、子块、if 块、for 块、switch 块、case 子句内的语句：
 
 直接的调用表达式会被识别：
 

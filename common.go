@@ -107,9 +107,6 @@ func checkComponentCall(solver *Solver, expr ast.Expr) *ast.CallExpr {
 			return nil
 		}
 		packagePath, ok := solver.file.imports[x.Name]
-		if !ok {
-			return nil
-		}
 		if !ok || !solver.componentFuncs.check(packagePath, funExpr.Sel.Name) {
 			return nil
 		}
