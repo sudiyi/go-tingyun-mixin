@@ -91,7 +91,6 @@ func scanDir(solver *Solver, dirname, packagePath string, process func(*Solver))
 func writeFile(f *File) {
 	fmt.Printf("writing file %s\n", f.path)
 	buf := &bytes.Buffer{}
-	printer.Fprint(buf, f.fileSet, f.ast)
 
 	fout, err := os.OpenFile(f.path, os.O_WRONLY, 0664)
 	if nil != err {
@@ -139,11 +138,7 @@ func main() {
 
 	for _, f := range solver.files {
 		if f.modified {
-			//writeFile(f)
-			buf := &bytes.Buffer{}
-			printer.Fprint(buf, f.fileSet, f.ast)
-			bs, _ := format.Source(buf.Bytes())
-			println(string(bs))
+			writeFile(f)
 		}
 	}
 }
