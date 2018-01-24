@@ -117,9 +117,11 @@ tyComponentSub := tyComponent.CreateComponent("FunctionInService")
 defer tyComponentSub.Finish()
 ```
 
+如果不想在该函数内创建子 component，而只是需要把实参 component 透传下去，可以将标记改为 `@tingyun:component,through`
+
 #### 修改实参
 
-component 函数中对其它 component 函数的调用实参也会被改写，在最后追加传入 `tyComponentSub`；会递归扫描函数体主块、子块、if 块、for 块、switch 块、case 子句内的语句：
+component 函数中对其它 component 函数的调用实参也会被改写，在最后追加传入 `tyComponentSub`；会递归扫描函数体主块、子块、if 块、for 块、switch 块、case 子句内的语句；如果标记为 `@tingyun:component,through`，则最后追加传入的变量名为 `tyComponent`
 
 直接的调用表达式会被识别：
 
@@ -225,7 +227,7 @@ defer tyComponent.Finish()
 
 #### 修改实参
 
-controller 函数中对 component 函数的调用实参也会被改写，在最后追加传入 `tyComponent`，规则与 component 相同
+controller 函数中对 component 函数的调用实参也会被改写，在最后追加传入 `tyComponent`，规则与 component 函数相同
 
 #### beego
 

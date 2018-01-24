@@ -10,7 +10,13 @@ func recognizeComponentFunc(solver *Solver) {
 	modified := false
 	for _, decl := range f.ast.Decls {
 		funcDecl, ok := decl.(*ast.FuncDecl)
-		if !ok || !checkNotation(f, funcDecl, "tingyun:component") || nil != funcDecl.Recv {
+		if !ok || nil != funcDecl.Recv {
+			continue
+		}
+		through := false
+		if checkNotation(f, funcDecl, "tingyun:component,through") {
+			through = true
+		} else if !checkNotation(f, funcDecl, "tingyun:component") {
 			continue
 		}
 		modified = true
@@ -23,10 +29,12 @@ func recognizeComponentFunc(solver *Solver) {
 			Type:  &ast.BasicLit{Value: "*tingyun.Component"},
 		})
 
-		prependStatements(funcDecl, []ast.Stmt{
-			createStmt(fmt.Sprintf(`tyComponentSub := tyComponent.CreateComponent("%s")`, funcDecl.Name.Name)),
-			createStmt("defer tyComponentSub.Finish()"),
-		})
+		if !through {
+			prependStatements(funcDecl, []ast.Stmt{
+				createStmt(fmt.Sprintf(`tyComponentSub := tyComponent.CreateComponent("%s")`, funcDecl.Name.Name)),
+				createStmt("defer tyComponentSub.Finish()"),
+			})
+		}
 	}
 
 	if modified {
@@ -40,10 +48,16 @@ func processComponentFunc(solver *Solver) {
 	f := solver.file
 	for _, decl := range f.ast.Decls {
 		funcDecl, ok := decl.(*ast.FuncDecl)
-		if !ok || !checkNotation(f, funcDecl, "tingyun:component") || nil != funcDecl.Recv {
+		if !ok || nil != funcDecl.Recv {
+			continue
+		}
+		componentVarName := "tyComponentSub"
+		if checkNotation(f, funcDecl, "tingyun:component,through") {
+			componentVarName = "tyComponent"
+		} else if !checkNotation(f, funcDecl, "tingyun:component") {
 			continue
 		}
 
-		processComponentCall(solver, funcDecl.Body.List, "tyComponentSub")
+		processComponentCall(solver, funcDecl.Body.List, componentVarName)
 	}
 }
