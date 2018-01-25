@@ -5,6 +5,8 @@ import (
 	"go/parser"
 	"go/token"
 	"strings"
+
+	"golang.org/x/tools/go/ast/astutil"
 )
 
 func createStmt(s string) ast.Stmt {
@@ -43,29 +45,11 @@ func parseFile(solver *Solver, fpath string) *File {
 }
 
 func importPackages(f *File, names [][2]string) {
-	importSpecs := make([]*ast.ImportSpec, len(names))
-	for i := 0; i < len(names); i++ {
-		pair := names[i]
-		importSpec := &ast.ImportSpec{}
-		importSpec.Path = &ast.BasicLit{
-			Kind:  token.STRING,
-			Value: `"` + pair[0] + `"`,
-		}
+	for _, pair := range names {
 		if len(pair[1]) > 0 {
-			importSpec.Name = &ast.Ident{
-				Name: pair[1],
-			}
-		}
-		importSpecs[i] = importSpec
-	}
-
-	for _, decl := range f.ast.Decls {
-		genDecl, ok := decl.(*ast.GenDecl)
-		if !ok || token.IMPORT != genDecl.Tok {
-			continue
-		}
-		for _, importSpec := range importSpecs {
-			genDecl.Specs = append(genDecl.Specs, importSpec)
+			astutil.AddNamedImport(f.fileSet, f.ast, pair[1], pair[0])
+		} else {
+			astutil.AddImport(f.fileSet, f.ast, pair[0])
 		}
 	}
 	ast.SortImports(f.fileSet, f.ast)
